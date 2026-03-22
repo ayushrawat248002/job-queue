@@ -2,6 +2,9 @@ import mongoosePkg from "mongoose";  // default import
 const { model, models, Schema } = mongoosePkg;
 
 const OutboxSchema = new Schema({
+  processid : {
+   type : Number,
+  },
   processing: {
     type: Boolean,
     required: true,

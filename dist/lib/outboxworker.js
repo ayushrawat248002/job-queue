@@ -24,19 +24,23 @@ const Outbox_worker = async () => {
     if (!jobs.length) return;
 
     const ids = jobs.map(j => j._id);
-
+  
     // Mark them as processing
     await Outbox.updateMany(
         { _id: { $in: ids }, processing: false, processed: false },
-        { $set: { processing: true, processingAt: Date.now() } }
+        { $set: { processid : process.pid,   processing: true, processingAt: Date.now() } }
     );
 
     const claimed = await Outbox.find({
-        _id: { $in: ids },
+        processid : process.pid,
         processing: true,
         processed: false
     }).lean();
-
+     
+    if(claimed.length === 0){
+      console.log('other worker already claimed it');
+      return;
+    }
        console.log(claimed,' claimedjobs')
    const pipeline = redis.pipeline()
 
@@ -66,7 +70,7 @@ const recoverStuckJobs = async () => {
 
     const result = await Outbox.updateMany(
       { processing: true, processed: false, processingAt: { $lt: fiveMinutesAgo } },
-      { $set: { processing: false } }
+      { $set: { processing: false, processid : null } }
     );
 
     console.log(`[Recover] Released ${result.modifiedCount} stuck jobs`);
