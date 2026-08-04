@@ -8,14 +8,19 @@ import connectDB from "../../../dist/lib/mongodb.js";
 
 
 export async function POST(req: NextRequest) {
-  try {
-    await connectDB();
-  } catch (err) {
-    return NextResponse.json(
-      { status: 500, message: "Database is down" },
-      { status: 500 }
-    );
-  }
+ try {
+  await connectDB();
+} catch (err) {
+  console.error("MongoDB connection error:", err);
+
+  return NextResponse.json(
+    {
+      status: 500,
+      message: err instanceof Error ? err.message : "Database is down",
+    },
+    { status: 500 }
+  );
+}
 
   const body = await req.json();
   const idompotencykey = req.headers.get("idompotency-key");

@@ -12,6 +12,7 @@ if (!global.mongoose) {
  */
 async function connectDB() {
     // Return existing connection if available
+    console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
     if (cached.conn) {
         return cached.conn;
     }
