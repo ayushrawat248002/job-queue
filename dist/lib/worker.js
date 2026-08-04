@@ -499,7 +499,7 @@ const dead_queue = async () => {
   await redis.del("dead_job_queue");
 };
 
-  const start = async () => {
+const start = async () => {
   try {
     await connectDB();
     console.log("✅ MongoDB connected");
@@ -508,13 +508,32 @@ const dead_queue = async () => {
       console.log(`Health server listening on port ${PORT}`);
     });
 
-    await workerLoop();
 
-    setInterval(() => {
-      await recoverStuckJobs()
+    // start worker without blocking
+    workerLoop().catch(err => {
+      console.error("Worker crashed:", err);
+    });
+
+
+    // recovery scheduler
+    setInterval(async () => {
+      try {
+        await recoverStuckJobs();
+      } catch (err) {
+        console.error("Recovery failed:", err);
+      }
     }, 30 * 60 * 1000);
 
-    setInterval(dead_queue, 30 * 60 * 1000);
+
+    // dead queue cleanup
+    setInterval(async () => {
+      try {
+        await dead_queue();
+      } catch (err) {
+        console.error("Dead queue cleanup failed:", err);
+      }
+    }, 30 * 60 * 1000);
+
 
   } catch (err) {
     console.error(err);
