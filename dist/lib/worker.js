@@ -4,20 +4,30 @@ import "dotenv/config";
 import connectDB from "./mongodb.js";
 import IORedis from "ioredis"
 import { group } from "console";
+import http from "http";
+
 console.log("REDIS_URL:", process.env.REDIS_URL);
+
+const PORT = process.env.PORT || 5001;
+const server = http.createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    return res.end("Outbox worker is running");
+  }
+
+  res.writeHead(404);
+  res.end();
+});
+
+
+
 
 // ----------------------
 // Connect Mongo Properly
 // ----------------------
-(async () => {
-  try {
-    await connectDB();
-    console.log("✅ MongoDB connected");
-  } catch (err) {
-    console.error("❌ MongoDB connection failed:", err);
-    process.exit(1);
-  }
-})();
+
+
+
 
 // ----------------------
 // Redis Logging
@@ -147,8 +157,7 @@ const workerLoop = async () => {
 
       const job = JSON.parse(rawJob);
 
-     
-      await redis.hset('job_payload', job.jobId, rawJob)
+  
     await publishClient.publish('job_event', JSON.stringify({
       groupname : 'user123',
       payload : {
@@ -316,26 +325,36 @@ for (const rawJob of stuckJobs) {
 
   console.log(`♻️ Recovered ${recovered} stuck jobs`);
 };
- 
-  
+
+const dead_queue = async () => {
+  await redis.del("dead_job_queue");
+};
+
+  const start = async () => {
+  try {
+    await connectDB();
+    console.log("✅ MongoDB connected");
+
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`Health server listening on port ${PORT}`);
+    });
+
+    workerLoop();
+
+    setInterval(() => {
+      recoverStuckJobs().catch(console.error);
+    }, 30 * 60 * 1000);
+
+    setInterval(dead_queue, 30 * 60 * 1000);
+
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
+};
+
+start();
 
 
-// ----------------------
-// Start Everything
-// ----------------------
-workerLoop();
-
-setInterval(() => {
-  recoverStuckJobs().catch(console.error);
-}, 30 * 60 * 1000);
- // every 30 sec
-
-  const  dead_queue = async() => {
-                 await redis.del('dead_job_queue')
-            }
-
- setInterval(()=> {
-         dead_queue()
- },30*60*1000)
 
 

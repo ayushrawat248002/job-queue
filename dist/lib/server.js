@@ -3,7 +3,16 @@ import { Server } from "socket.io";
 import IORedis from "ioredis";
 import { redis } from "./redis.js";
 
-const httpServer = createServer();
+const httpServer = createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200);
+    res.end("Socket server running");
+    return;
+  }
+
+  res.writeHead(404);
+  res.end();
+});
 
 const io = new Server(httpServer, {
   cors: {

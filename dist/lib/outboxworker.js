@@ -1,10 +1,24 @@
 import Outbox from "../models/outbox.js";
 import { redis } from "./redis.js";
+import http from "http";
 import "dotenv/config";
 console.log("REDIS_URL:sadsadasvvcvcvcvcvcvcvc", process.env.REDIS_URL);
 import connectDB from './mongodb.js'
 import "dotenv/config";
+const PORT = process.env.PORT || 5000;
+const server = http.createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    return res.end("Outbox worker is running");
+  }
 
+  res.writeHead(404);
+  res.end();
+});
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Health server listening on port ${PORT}`);
+});
 
   try {
      await connectDB()
@@ -13,6 +27,7 @@ import "dotenv/config";
     process.exit(1);
   }
 
+  
 
 const Outbox_worker = async () => { 
 
