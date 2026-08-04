@@ -38,6 +38,8 @@ const Outbox_worker = async () => {
 
     if (!jobs.length) return;
 
+    console.log(jobs.length, 'length')
+
     const ids = jobs.map(j => j._id);
   
     // Mark them as processing
