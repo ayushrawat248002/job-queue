@@ -92,52 +92,127 @@ const publishClient = new IORedis(process.env.REDIS_URL, {
 });
 
 const processJob = async (job) => {
-  console.log(`Processing job ${job.jobId}`);
+  console.log("====================================");
+  console.log(`🚀 Starting processing for Job ${job.jobId}`);
+  console.log(`👷 Worker PID: ${process.pid}`);
 
- const valid = await jobModel.findOneAndUpdate(
-  { _id: job.jobId, status: "pending" },
-  {
-    $set: {
-      status: "processing",
-      startedAt: Date.now(),
-      workerId: process.pid
+  console.log("🔒 Attempting to claim job...");
+
+  const valid = await jobModel.findOneAndUpdate(
+    {
+      _id: job.jobId,
+      status: "pending",
+    },
+    {
+      $set: {
+        status: "processing",
+        startedAt: Date.now(),
+        workerId: process.pid,
+      },
+    },
+    {
+      returnDocument: "after",
     }
-  },
-  {returnDocument: "after" }
-);
-
-if (!valid) {
-  throw new Error("Another worker already took this job");
-}
-  
-
-  await publishClient.publish('job_event', JSON.stringify({
-    groupname : 'user123',
-    payload : {type : 'active', jobId : job.jobId}
-  }))
-
-  await redis.eval(luascript2, 1, 'job_stats', -1, 1, 0, 0)
-
-
-  // 🔥 Simulate real work
-  await new Promise((res) => setTimeout(res, 5000));
-
-  await jobModel.updateOne(
-    { _id: job.jobId, status: "processing" },
-    { $set: { status: "complete" } }
   );
 
-  await redis.eval(luaScript, 0, "jobs:completed");
+  if (!valid) {
+    console.log(`⚠️ Job ${job.jobId} already claimed by another worker`);
+    throw new Error("Another worker already took this job");
+  }
 
-  console.log(`✅ Job ${job.jobId} completed`);
-  await publishClient.publish('job_event', JSON.stringify({
-    groupname : 'user123',
-    payload : {type : 'completed', jobId : job.jobId}
-  }))
+  console.log("✅ Job successfully claimed");
+  console.log(valid);
 
-    await redis.eval(luascript2, 1, 'job_stats', 0, -1, 1, 0)
+  console.log("📢 Publishing ACTIVE event...");
 
+  await publishClient.publish(
+    "job_event",
+    JSON.stringify({
+      groupname: "user123",
+      payload: {
+        type: "active",
+        jobId: job.jobId,
+      },
+    })
+  );
 
+  console.log("✅ Active event published");
+
+  console.log("📊 Updating Redis job stats...");
+
+  await redis.eval(
+    luascript2,
+    1,
+    "job_stats",
+    -1,
+    1,
+    0,
+    0
+  );
+
+  console.log("✅ Redis stats updated");
+
+  console.log("⏳ Simulating job execution (5 seconds)...");
+
+  await new Promise((res) => setTimeout(res, 5000));
+
+  console.log("💾 Updating Mongo status to COMPLETE...");
+
+  const updateResult = await jobModel.updateOne(
+    {
+      _id: job.jobId,
+      status: "processing",
+    },
+    {
+      $set: {
+        status: "complete",
+      },
+    }
+  );
+
+  console.log("Mongo Update Result:", updateResult);
+
+  console.log("📈 Updating completion bucket...");
+
+  await redis.eval(
+    luaScript,
+    0,
+    "jobs:completed"
+  );
+
+  console.log("✅ Completion bucket updated");
+
+  console.log("📢 Publishing COMPLETED event...");
+
+  await publishClient.publish(
+    "job_event",
+    JSON.stringify({
+      groupname: "user123",
+      payload: {
+        type: "completed",
+        jobId: job.jobId,
+      },
+    })
+  );
+
+  console.log("✅ Completed event published");
+
+  console.log("📊 Updating final Redis stats...");
+
+  await redis.eval(
+    luascript2,
+    1,
+    "job_stats",
+    0,
+    -1,
+    1,
+    0
+  );
+
+  console.log("✅ Final stats updated");
+
+  console.log(`🎉 Job ${job.jobId} COMPLETED successfully`);
+  console.log("====================================");
 };
 
 // ----------------------
@@ -148,106 +223,200 @@ const workerLoop = async () => {
 
   while (true) {
     try {
+      console.log("⏳ Waiting for job...");
+
       const rawJob = await redis.brpoplpush(
         "job_queue",
         "processing_queue",
         0
       );
-       
+
+      console.log("📥 Job popped from job_queue");
 
       const job = JSON.parse(rawJob);
 
-  
-    await publishClient.publish('job_event', JSON.stringify({
-      groupname : 'user123',
-      payload : {
-        jobId : job.jobId,
-        type : 'pending'
-      }
-    }))
+      console.log(`🆔 Job ID: ${job.jobId}`);
+      console.log(`🔁 Retry Count: ${job.retry ?? 0}`);
 
-     await redis.eval(luascript2, 1, 'job_stats', 1, 0, 0, 0)
+      await publishClient.publish(
+        "job_event",
+        JSON.stringify({
+          groupname: "user123",
+          payload: {
+            jobId: job.jobId,
+            type: "pending",
+          },
+        })
+      );
+
+      console.log("📢 Published pending event");
+
+      await redis.eval(luascript2, 1, "job_stats", 1, 0, 0, 0);
+
+      console.log("📊 Pending stats updated");
+
       try {
-        console.log(job)
+        console.log(`⚙️ Processing job ${job.jobId}`);
+
         await processJob(job);
 
-        // Remove after success
-        await redis.lrem(
-          "processing_queue",
-          1,
-          rawJob );
+        console.log(`✅ Job ${job.jobId} processed successfully`);
 
-      } catch (err) {
-        if (err.message === "Another worker already took this job") {
-           await redis.eval(luascript2, 1, 'job_stats', -1, 0, 0, 0)
-          await redis.lrem(
+        await redis.lrem(
           "processing_queue",
           1,
           rawJob
         );
-  console.log("⚡ Duplicate claim ignored");
-  continue;
-}
- await redis.eval(luascript2, 1, 'job_stats', 0, -1, 0, 1)
-        console.error(`❌ Job failed: ${err.message}`);
 
-        await redis.eval(luaScript, 0, "jobs:failed");
+        console.log(`🗑 Removed ${job.jobId} from processing queue`);
+
+      } catch (err) {
+
+        console.error(`❌ processJob failed for ${job.jobId}`);
+        console.error(err);
+
+        if (err.message === "Another worker already took this job") {
+
+          console.log(`⚡ Duplicate claim detected for ${job.jobId}`);
+
+          await redis.eval(
+            luascript2,
+            1,
+            "job_stats",
+            -1,
+            0,
+            0,
+            0
+          );
+
+          await redis.lrem(
+            "processing_queue",
+            1,
+            rawJob
+          );
+
+          console.log(`🗑 Duplicate removed from processing queue`);
+
+          continue;
+        }
+
+        await redis.eval(
+          luascript2,
+          1,
+          "job_stats",
+          0,
+          -1,
+          0,
+          1
+        );
+
+        console.log("📊 Active -> Failed stats updated");
+
+        await redis.eval(
+          luaScript,
+          0,
+          "jobs:failed"
+        );
+
+        console.log("📈 Failure bucket updated");
 
         job.retry = (job.retry || 0) + 1;
+
+        console.log(`🔁 Retry count now ${job.retry}`);
 
         await redis.lrem(
           "processing_queue",
           1,
-        rawJob
+          rawJob
         );
 
+        console.log("🗑 Removed failed job from processing queue");
+
         if (job.retry <= 3) {
-           await jobModel.updateOne(
-    { _id: job.jobId },
-    { 
-      $set: { 
-        status: "pending",
-        startedAt : null,
-        workerId: null
-      } 
-    }
-  );
-     await publishClient.publish('job_event', JSON.stringify({
-      groupname : 'user123',
-      payload : {
-        jobId : job.jobId,
-        type : 'pending'
-      }
-    }))
-     
+
+          console.log(`♻️ Resetting Mongo status for ${job.jobId}`);
+
+          await jobModel.updateOne(
+            { _id: job.jobId },
+            {
+              $set: {
+                status: "pending",
+                startedAt: null,
+                workerId: null,
+              },
+            }
+          );
+
+          console.log("✅ Mongo reset complete");
+
+          await publishClient.publish(
+            "job_event",
+            JSON.stringify({
+              groupname: "user123",
+              payload: {
+                jobId: job.jobId,
+                type: "pending",
+              },
+            })
+          );
+
+          console.log(`📢 Published retry event for ${job.jobId}`);
+
+          console.log(`⏱ Waiting ${job.retry} second(s) before retry`);
+
           await new Promise((res) =>
             setTimeout(res, job.retry * 1000)
           );
 
-          await redis.rpush("job_queue", rawJob);
+          await redis.rpush(
+            "job_queue",
+            JSON.stringify(job)
+          );
 
           console.log(
-            `🔁 Retrying job ${job.jobId}, attempt ${job.retry}`
+            `🔁 Job ${job.jobId} pushed back to queue (Attempt ${job.retry})`
           );
+
         } else {
 
-  await redis.publish("job_event", JSON.stringify({
-    groupname : 'user123',
-    payload : {type : 'failed', jobId : job.jobId }
-  }))
+          console.log(`💀 Retry limit exceeded for ${job.jobId}`);
+
+          await publishClient.publish(
+            "job_event",
+            JSON.stringify({
+              groupname: "user123",
+              payload: {
+                type: "failed",
+                jobId: job.jobId,
+              },
+            })
+          );
+
+          console.log("📢 Published failed event");
+
           await redis.rpush(
             "dead_job_queue",
-           rawJob
+            JSON.stringify(job)
           );
 
           console.log(
-            `💀 Job ${job.jobId} moved to dead queue`
+            `☠️ Job ${job.jobId} moved to dead queue`
           );
         }
       }
+
+      console.log("--------------------------------------------");
+
     } catch (err) {
-      console.error("Worker loop error:", err);
-      await new Promise((res) => setTimeout(res, 1000));
+
+      console.error("💥 Worker loop crashed");
+      console.error(err);
+
+      console.log("😴 Sleeping for 1 second...");
+
+      await new Promise((res) =>
+        setTimeout(res, 1000)
+      );
     }
   }
 };
