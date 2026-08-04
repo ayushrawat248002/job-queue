@@ -1,14 +1,21 @@
-import Outbox from "../models/outbox.js";
-import { redis } from "./redis.js";
 import http from "http";
 import "dotenv/config";
-console.log("REDIS_URL:sadsadasvvcvcvcvcvcvcvc", process.env.REDIS_URL);
-import connectDB from './mongodb.js'
-import "dotenv/config";
+
+import Outbox from "../models/outbox.js";
+import { redis } from "./redis.js";
+import connectDB from "./mongodb.js";
+
 const PORT = process.env.PORT || 5000;
+
+console.log("REDIS_URL:", process.env.REDIS_URL);
+
+/* -------------------- Health Server -------------------- */
+
 const server = http.createServer((req, res) => {
   if (req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.writeHead(200, {
+      "Content-Type": "text/plain",
+    });
     return res.end("Outbox worker is running");
   }
 
@@ -20,87 +27,146 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`Health server listening on port ${PORT}`);
 });
 
-  try {
-     await connectDB()
-  } catch (err) {
-    console.error("❌ MongoDB connection failed:", err);
-    process.exit(1);
+/* -------------------- Outbox Worker -------------------- */
+
+async function Outbox_worker() {
+  const jobs = await Outbox.find({
+    processed: false,
+    processing: false,
+  })
+    .sort({ createdAt: 1 })
+    .limit(100)
+    .lean();
+
+  if (!jobs.length) return;
+
+  console.log(`Found ${jobs.length} jobs`);
+
+  const ids = jobs.map((j) => j._id);
+
+  // Claim jobs
+  await Outbox.updateMany(
+    {
+      _id: { $in: ids },
+      processing: false,
+      processed: false,
+    },
+    {
+      $set: {
+        processid: process.pid,
+        processing: true,
+        processingAt: new Date(),
+      },
+    }
+  );
+
+  const claimed = await Outbox.find({
+    processid: process.pid,
+    processing: true,
+    processed: false,
+  }).lean();
+
+  if (!claimed.length) {
+    console.log("Another worker already claimed these jobs.");
+    return;
   }
 
-  
+  const pipeline = redis.pipeline();
 
-const Outbox_worker = async () => { 
+  for (const job of claimed) {
+    pipeline.rpush("job_queue", JSON.stringify(job.payload));
+  }
 
-    const jobs = await Outbox.find({
-        processed: false,
-        processing: false
-    }).sort({ createdAt: 1 }).limit(100).lean(); // include all fields
+  await pipeline.exec();
 
-    if (!jobs.length) return;
-
-    console.log(jobs.length, 'length')
-
-    const ids = jobs.map(j => j._id);
-  
-    // Mark them as processing
-    await Outbox.updateMany(
-        { _id: { $in: ids }, processing: false, processed: false },
-        { $set: { processid : process.pid,   processing: true, processingAt: Date.now() } }
-    );
-
-    const claimed = await Outbox.find({
-        processid : process.pid,
-        processing: true,
-        processed: false
-    }).lean();
-     
-    if(claimed.length === 0){
-      console.log('other worker already claimed it');
-      return;
+  await Outbox.updateMany(
+    {
+      _id: {
+        $in: claimed.map((j) => j._id),
+      },
+    },
+    {
+      $set: {
+        processed: true,
+        processedAt: new Date(),
+      },
     }
-       console.log(claimed,' claimedjobs')
-   const pipeline = redis.pipeline()
+  );
 
-for (const job of claimed) {
-  pipeline.rpush("job_queue", JSON.stringify(job.payload))
+  console.log(`Queued ${claimed.length} jobs`);
 }
 
-await pipeline.exec()
+/* -------------------- Recover Worker -------------------- */
 
-    const queueLength = await redis.llen('job_queue');
-    console.log('Job queue length:', queueLength);
+async function recoverStuckJobs() {
+  const lock = await redis.set(
+    "recover_lock",
+    "1",
+    "EX",
+    240,
+    "NX"
+  );
 
-    // Mark them as processed
-    await Outbox.updateMany(
-        { _id: { $in: claimed.map(j => j._id) } },
-        { $set: { processed: true, processedAt: Date.now() } }
-    );
-};
+  if (!lock) return;
 
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
-const recoverStuckJobs = async () => {
+  const result = await Outbox.updateMany(
+    {
+      processing: true,
+      processed: false,
+      processingAt: { $lt: fiveMinutesAgo },
+    },
+    {
+      $set: {
+        processing: false,
+        processid: null,
+      },
+    }
+  );
+
+  console.log(`[Recover] Released ${result.modifiedCount} stuck jobs`);
+}
+
+/* -------------------- Startup -------------------- */
+
+async function start() {
   try {
-    const lock = await redis.set("recover_lock", "1", "EX", 240, "NX");
-    if (!lock) return;
+    await connectDB();
+    console.log("✅ MongoDB connected");
 
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    console.log("Outbox worker started...");
 
-    const result = await Outbox.updateMany(
-      { processing: true, processed: false, processingAt: { $lt: fiveMinutesAgo } },
-      { $set: { processing: false, processid : null } }
-    );
+    setInterval(async () => {
+      try {
+        await Outbox_worker();
+      } catch (err) {
+        console.error("Outbox worker error:", err);
+      }
+    }, 1000);
 
-    console.log(`[Recover] Released ${result.modifiedCount} stuck jobs`);
+    setInterval(async () => {
+      try {
+        await recoverStuckJobs();
+      } catch (err) {
+        console.error("Recover worker error:", err);
+      }
+    }, 6000);
   } catch (err) {
-    console.error("[Recover] Error:", err);
-          }
-};
+    console.error("❌ Startup failed:", err);
+    process.exit(1);
+  }
+}
 
-// Run intervals
+start();
 
+/* -------------------- Process Events -------------------- */
 
-  setInterval(recoverStuckJobs, 6000);
-  setInterval(Outbox_worker, 300);
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled Rejection:", err);
+});
 
-
-console.log("Outbox worker started...");
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  process.exit(1);
+});

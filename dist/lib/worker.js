@@ -339,10 +339,10 @@ const dead_queue = async () => {
       console.log(`Health server listening on port ${PORT}`);
     });
 
-    workerLoop();
+    await workerLoop();
 
     setInterval(() => {
-      recoverStuckJobs().catch(console.error);
+      await recoverStuckJobs()
     }, 30 * 60 * 1000);
 
     setInterval(dead_queue, 30 * 60 * 1000);
