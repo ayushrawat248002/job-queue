@@ -110,6 +110,6 @@ io.on("connection", (socket) => {
 */
 const PORT = process.env.PORT || 5000;
 
-httpServer.listen(process.env.PORT || 5000, () => {
+httpServer.listen(process.env.PORT || 5000, "0.0.0.0", () => {
   console.log(`Socket server running on port ${PORT}`);
 });
