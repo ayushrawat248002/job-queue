@@ -5,8 +5,15 @@ import { redis } from "./redis.js";
 
 const httpServer = createServer();
 
-const io = new Server(httpServer,{
-  cors:{ origin:"http://localhost:3000"}
+const io = new Server(httpServer, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      process.env.FRONTEND_URL
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
 /* Redis connection monitoring */
@@ -31,12 +38,15 @@ const subclient = new IORedis(process.env.REDIS_URL, {
   tls: {},
   maxRetriesPerRequest: null,
 });
+
 subclient.on("connect", () => console.log("SUB connected"));
 subclient.on("ready", () => console.log("SUB ready"));
 subclient.on("error", (err) => console.error("SUB error", err));
 subclient.on("close", () => console.log("SUB closed"));
 subclient.on("end", () => console.log("SUB ended"));
 
+
+/* Subscribe to Redis events */
 (async () => {
   try {
     await subclient.subscribe("job_event");
@@ -46,32 +56,60 @@ subclient.on("end", () => console.log("SUB ended"));
   }
 })();
 
-subclient.on("message",(channel,message)=>{
 
-  const data = JSON.parse(message);
+/* Receive job events from Redis */
+subclient.on("message", (channel, message) => {
+  try {
+    const data = JSON.parse(message);
 
-  console.log("job event:",data);
+    console.log("job event:", data);
 
-  io.to(data.groupname).emit("job_update",data.payload);
+    io.to(data.groupname).emit(
+      "job_update",
+      data.payload
+    );
 
+  } catch (error) {
+    console.error("Invalid job event:", error);
+  }
 });
+
 
 /* Socket connections */
-io.on("connection",(socket)=>{
+io.on("connection", (socket) => {
 
-  console.log("client connected",socket.id);
+  console.log("client connected", socket.id);
 
-  socket.on("join",(content)=>{
+
+  socket.on("join", (content) => {
+
     socket.join(content.group);
-    console.log(socket.id,"joined",content.group);
+
+    console.log(
+      socket.id,
+      "joined",
+      content.group
+    );
+
   });
 
-  socket.on("disconnect",()=>{
-    console.log("client disconnected",socket.id);
+
+  socket.on("disconnect", () => {
+    console.log(
+      "client disconnected",
+      socket.id
+    );
   });
 
 });
 
-httpServer.listen(5000,()=>{
-  console.log("Socket server running on port 5000");
+
+/*
+  Render assigns PORT dynamically.
+  Local development uses 5000.
+*/
+const PORT = process.env.PORT || 5000;
+
+httpServer.listen(process.env.PORT || 5000, () => {
+  console.log(`Socket server running on port ${PORT}`);
 });
