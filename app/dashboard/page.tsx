@@ -45,6 +45,8 @@ const Servers_activator = async () => {
     "Almost there..."
   ]);
 
+   await new Promise((res) => setTimeout(res,2000))
+
   const servers = [
     "https://socket-server-2n9d.onrender.com/health",
     "https://ouboxworker.onrender.com/health",
@@ -107,7 +109,7 @@ const Servers_activator = async () => {
 
   TimerRef.current = setInterval(() => {
     setInfoIndex((prev : any) => (prev + 1) % Info.length);
-  }, 900);
+  }, 500);
 
   return () => {
     clearInterval(TimerRef.current);
@@ -225,7 +227,7 @@ const Servers_activator = async () => {
     </div>
 
     {/* Submit */}
-    <div className={`${Info.length > 0 ? 'block' : 'hidden'} font-medium rounded-lg px-5 py-2.5 text-black `}>{Info[InfoIndex]}</div>
+    <div className={`${Info.length > 0 ? 'block' : 'hidden'} font-medium transition-all duration-500 ease-in-out rounded-lg px-5 py-2.5 text-black `}>{Info[InfoIndex]}</div>
   <button
       type="submit"
       className={ `${Info.length === 0 ? 'block': 'hidden'} bg-blue-600 hover:bg-blue-700 text-white
@@ -240,23 +242,23 @@ const Servers_activator = async () => {
       <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
 
         <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-sm text-gray-500">Pending</h2>
-          <p className="text-2xl font-bold">{jobCounts?.pending}</p>
+          <h2 className="text-sm text-black">Pending</h2>
+          <p className="text-2xl font-bold  text-blue-950">{jobCounts?.pending}</p>
         </div>
 
         <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-sm text-gray-500">Active</h2>
-          <p className="text-2xl font-bold">{jobCounts?.active}</p>
+          <h2 className="text-sm text-black">Active</h2>
+          <p className="text-2xl font-bold  text-blue-950">{jobCounts?.active}</p>
         </div>
 
         <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-sm text-gray-500">Completed</h2>
-          <p className="text-2xl font-bold">{jobCounts?.completed}</p>
+          <h2 className="text-sm text-black">Completed</h2>
+          <p className="text-2xl font-bold  text-blue-950">{jobCounts?.completed}</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-sm text-gray-500">Failed</h2>
-          <p className="text-2xl font-bold">{jobCounts?.failed}</p>
+        <div className="bg-white rounded-xl  shadow p-6">
+          <h2 className="text-sm text-black">Failed</h2>
+          <p className="text-2xl font-bold text-blue-950">{jobCounts?.failed}</p>
         </div>
 
       </section>
@@ -270,7 +272,7 @@ const Servers_activator = async () => {
         <div className="bg-white rounded-xl shadow p-6">
           <h3 className="font-semibold mb-4 text-yellow-600">Pending</h3>
           {pending.map(job => (
-            <div key={job} className="border-b py-2">
+            <div key={job} className="border-b py-2  text-blue-950">
               {job}
             </div>
           ))}
@@ -280,7 +282,7 @@ const Servers_activator = async () => {
         <div className="bg-white rounded-xl shadow p-6">
           <h3 className="font-semibold mb-4 text-green-600">Active</h3>
           {active.map(job => (
-            <div key={job} className="border-b py-2">
+            <div key={job} className="border-b py-2 text-blue-950">
               {job}
             </div>
           ))}
@@ -290,7 +292,7 @@ const Servers_activator = async () => {
         <div className="bg-white rounded-xl shadow p-6">
           <h3 className="font-semibold mb-4 text-blue-600">Completed</h3>
           {completed.map(job => (
-            <div key={job} className="border-b py-2">
+            <div key={job} className="border-b py-2  text-blue-950">
               {job}
             </div>
           ))}
@@ -300,7 +302,7 @@ const Servers_activator = async () => {
         <div className="bg-white rounded-xl shadow p-6">
           <h3 className="font-semibold mb-4 text-red-600">Failed</h3>
           {failed.map(job => (
-            <div key={job} className="border-b py-2">
+            <div key={job} className="border-b py-2  text-blue-950">
               {job}
             </div>
           ))}
