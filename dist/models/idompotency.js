@@ -7,23 +7,19 @@ const idomModel = new Schema(
     key: {
       type: String,
       required: true,
-      unique: true
+      unique: true,
     },
 
     jobId: {
       type: Schema.Types.ObjectId,
-      ref: "jobs"
-    }
+      ref: "jobs",
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
-idomModel.createIndex(
-  { key: 1 },
-  { unique: true }
-)
 const IdomModel =
   models["idompotency-key"] ||
   model("idompotency-key", idomModel);
