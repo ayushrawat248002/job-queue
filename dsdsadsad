@@ -1,0 +1,10 @@
+* [33me9c091e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m made changes in worker
+* [33me523011[m latest change to worker
+* [33m3fc4e53[m changes made in worker and outboxworker
+* [33m4cffe29[m latest
+* [33meefa4d6[m added more console to files
+* [33me197d95[m changed bg-worker as webservice
+* [33m76092d0[m added 0.0.0.0 to allow request from oustide in server.js
+* [33md56f36d[m changed server.js file
+* [33mda5369b[m added scoket io  package
+* [33m2d2ba3c[m first commit
