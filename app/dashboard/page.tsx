@@ -156,39 +156,50 @@ const Servers_activator = async () => {
         
       };
 
+          try {
+  await Servers_activator();
 
-      try {
-        await Servers_activator();
-        const response = await fetch("https://job-queue-2.onrender.com/api/createjob", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            'idompotency-key': String(formData.get("idempotencyKey") || ""),
-          },
-          body: JSON.stringify(payload),
-        });
-            clearInterval(TimerRef.current);
+  const response = await fetch(
+    "https://job-queue-2.onrender.com/api/createjob",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "idompotency-key": String(
+          formData.get("idempotencyKey") || ""
+        ),
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  clearInterval(TimerRef.current);
   setInfo([]);
   setInfoIndex(0);
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to create job");
-        }
-
-        console.log("Job created:", data);
-
-        form.reset();
-      } catch (error : any) {
-              if(error?.status === 409){
-                   window.alert(error?.message)                
-              }
-           clearInterval(TimerRef.current);
+  const data = await response.json();
+         clearInterval(TimerRef.current);
   setInfo([]);
   setInfoIndex(0);
-        console.error("Error creating job:", error);
-      }
+  if (!response.ok) {
+    if (response.status === 409) {
+      window.alert(data.message);
+      return;
+    }
+
+    throw new Error(data.message || "Failed to create job");
+  }
+
+  console.log("Job created:", data);
+  form.reset();
+
+} catch (error: any) {
+   
+  console.error(error);
+}
+          
+       
+      
     }}
     className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end"
   >
