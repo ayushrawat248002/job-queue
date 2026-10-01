@@ -159,12 +159,11 @@ const Servers_activator = async () => {
 
       try {
         await Servers_activator();
-       
         const response = await fetch("https://job-queue-2.onrender.com/api/createjob", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            'idomptency-key': String(formData.get("idempotencyKey") || ""),
+            'idompotency-key': String(formData.get("idempotencyKey") || ""),
           },
           body: JSON.stringify(payload),
         });
