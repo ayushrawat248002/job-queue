@@ -13,8 +13,9 @@ console.log("REDIS_URL:", process.env.REDIS_URL);
 
 const server = http.createServer((req, res) => {
   if (req.url === "/health") {
-    res.writeHead(200, {
-      "Content-Type": "text/plain",
+        res.writeHead(200, {
+      "Access-Control-Allow-Origin":
+        process.env.FRONTEND_URL || "http://localhost:3000",
     });
     return res.end("Outbox worker is running");
   }
