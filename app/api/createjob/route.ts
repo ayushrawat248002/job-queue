@@ -105,26 +105,14 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     // 🔹 Handle duplicate idempotency key
     if (err.code === 11000) {
-      const existing = await IdomModel.findOne({
-        key: idompotencykey,
-      }).lean();
-
-      if (!existing?.jobId) {
-        return NextResponse.json(
-          { message: "Duplicate request but no job found" },
-          { status: 409 }
-        );
-      }
-
-      const existingJob = await JobModel.findById(
-        existing.jobId
-      ).lean();
-
+   
+                            
+      
       return NextResponse.json(
         {
-          message: existingJob?.status ?? "Job already exists",
-        },
-        { status: 200 }
+          message: "Duplicate idempotency key - cannot create Job with same key",
+        status : 409,
+        }
       );
     }
 

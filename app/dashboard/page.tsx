@@ -66,9 +66,7 @@ const Servers_activator = async () => {
     throw error;
   }
 
-  clearInterval(TimerRef.current);
-  setInfo([]);
-  setInfoIndex(0);
+
 };
 
   useEffect(()=>{
@@ -169,6 +167,9 @@ const Servers_activator = async () => {
           },
           body: JSON.stringify(payload),
         });
+            clearInterval(TimerRef.current);
+  setInfo([]);
+  setInfoIndex(0);
 
         const data = await response.json();
 
@@ -179,7 +180,13 @@ const Servers_activator = async () => {
         console.log("Job created:", data);
 
         form.reset();
-      } catch (error) {
+      } catch (error : any) {
+              if(error?.status === 409){
+                   window.alert(error?.message)                
+              }
+           clearInterval(TimerRef.current);
+  setInfo([]);
+  setInfoIndex(0);
         console.error("Error creating job:", error);
       }
     }}
