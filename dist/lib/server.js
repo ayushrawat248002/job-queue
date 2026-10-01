@@ -5,7 +5,11 @@ import { redis } from "./redis.js";
 
 const httpServer = createServer((req, res) => {
   if (req.url === "/health") {
-    res.writeHead(200);
+    res.writeHead(200, {
+      "Access-Control-Allow-Origin":
+        process.env.FRONTEND_URL || "http://localhost:3000",
+    });
+
     res.end("Socket server running");
     return;
   }
