@@ -20,6 +20,10 @@ const idomModel = new Schema(
   }
 );
 
+idomModel.createIndex(
+  { key: 1 },
+  { unique: true }
+)
 const IdomModel =
   models["idompotency-key"] ||
   model("idompotency-key", idomModel);
