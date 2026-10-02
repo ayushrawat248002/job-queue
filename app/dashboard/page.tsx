@@ -107,7 +107,7 @@ const Servers_activator = async () => {
 
   TimerRef.current = setInterval(() => {
     setInfoIndex((prev : any) => (prev + 1) % Info.length);
-  }, 500);
+  }, 800);
 
   return () => {
     clearInterval(TimerRef.current);
@@ -181,13 +181,12 @@ const Servers_activator = async () => {
          clearInterval(TimerRef.current);
   setInfo([]);
   setInfoIndex(0);
-  if (!response.ok) {
-    if (response.status === 409) {
+
+    if (data.status === 409) {
       window.alert(data.message);
       return;
-    }
 
-    throw new Error(data.message || "Failed to create job");
+    
   }
 
   console.log("Job created:", data);
